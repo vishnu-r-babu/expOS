@@ -1,0 +1,37 @@
+16 - int 7
+17 - int 7
+4 - timer
+5 - timer 
+63 - library
+64 - library
+65 - init code
+66 - init code
+22 - int 10
+23 - int 10
+2 - exception handler
+3 - exception - handler
+78 - heap of init
+79 - heap of init
+76 - stack of init
+77 - stack of init
+80 - init user area page
+54 - Module 7 
+55 - Module 7
+69 - idle process code
+70 - idle process code
+81 - idle process stack
+82 - idle process user area page
+83 - even.xsm code
+84 - even.xsm heap
+85 - even.xsm heap
+86 - even.xsm stack
+87 - even.xsm stack
+88 - even.xsm kernel stack
+50 - module 5
+51 - module 5
+89 - primes.xsm for stage 14 assg
+90 - heap of primes.xsm stage 14 assg
+91 - heap of primes.xsm stage 14 assg
+92 - stack of primes.xsm for stage 14 assg
+93 - stack of primes.xsm for stage 14 assg
+94 - user area page of primes.xsm for stage 14 assg
