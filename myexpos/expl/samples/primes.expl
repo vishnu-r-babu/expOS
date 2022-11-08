@@ -1,0 +1,28 @@
+int main()
+{
+	decl
+		int count, num, x, flag;
+	enddecl
+	begin
+		breakpoint;
+		num=2;
+		write(num);
+		num=num+1;
+		while(num<=100) do
+			x=2;
+			flag=0;
+			while(x<num) do
+				if((num%x)==0) then
+					flag=1;
+					break;
+				endif;
+				x=x+1;
+			endwhile;
+			if(flag==0) then
+				write(num);
+			endif;
+			num=num+1;
+		endwhile;
+	return 0;
+	end
+}

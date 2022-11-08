@@ -1,0 +1,31 @@
+//objective: print prime numbers from 2 to 400 -> how to check if prime? -> run numbers from 2 to number/2 -> 
+int main()
+{
+	decl
+		int count, num, x, flag;
+	enddecl
+	begin
+		count=0;
+		num=400;
+		while(num>2) do
+			x=2;
+			flag=0;
+			while(x<num) do
+				if((num%x)==0) then
+					flag=1;
+					break;
+				endif;
+				x=x+1;
+			endwhile;
+			if(flag==0) then
+				if((count%3)==0) then
+					write(num);
+				endif;
+				count=count+1;
+			endif;
+			num=num-1;
+		endwhile;
+	return 0;
+	end
+				
+}
