@@ -1,0 +1,49 @@
+breakpoint;
+alias functionNum R1;
+alias currentPID R2;
+
+//implementing only terminal write and terminal read
+//if function number not 3, return
+if (functionNum != 3 && functionNum != 4) then
+	return;
+endif;
+
+//for terminal read
+if (functionNum == 4) then
+	//push values used in this module	
+	multipush(R1, R2, R3);	
+	//storing values to call module 0, acquire terminal
+	R1 = 8;
+	R2 = currentPID;
+	call MOD_0;
+	multipop(R1, R2, R3);
+	read;
+	[PROCESS_TABLE + currentPID * 16 + 4] = WAIT_TERMINAL;
+	multipush(R1, R2, R3);	
+	call MOD_5;
+	multipop(R1, R2, R3);
+	//store input buffer value to word_addr
+	alias word_addr R3;
+	[([PTBR+(2*(word_addr/512))]*512)+(word_addr%512)]= [PROCESS_TABLE + currentPID * 16 + 8];
+	return;
+endif;
+
+//for terminal write
+if (functionNum == 3) then
+	//push values used in this module	
+	multipush(R1, R2, R3);
+	//storing values to call module 0, acquire terminal
+	R1 = 8;
+	R2 = currentPID;
+	call MOD_0;
+	multipop(R1, R2, R3);
+	print R3;
+	multipush(R1, R2, R3);
+	//storing values to call module 0, release terminal
+	R1 = 9;
+	R2 = currentPID;
+	call MOD_0;
+	multipop(R1, R2, R3);
+	return;
+breakpoint;
+endif;

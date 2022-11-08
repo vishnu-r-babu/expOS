@@ -1,0 +1,49 @@
+alias functionNum R1;
+
+if (functionNum == GET_FREE_PAGE) then
+	//increment wait mem count
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+	
+	//busy loop while memory is full
+	while([SYSTEM_STATUS_TABLE + 2] == 0) do
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_MEM;
+		call MOD_5;
+	endwhile;
+	
+	//decrement wait mem count
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+	//decrement mem free count
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+	
+	//find free page from memory free list
+	alias i R2;
+	i=0;
+	while (i < 128) do
+		if([MEMORY_FREE_LIST + i] == 0) then
+			[MEMORY_FREE_LIST + i] = 1;
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	//storing free page in R0 as return value
+	R0 = i;
+	return;
+endif;
+
+if (functionNum == RELEASE_PAGE) then
+	alias pageNum R2;
+	//decrement memory free list value of input page
+	[MEMORY_FREE_LIST + pageNum] = [MEMORY_FREE_LIST + pageNum] - 1;
+	//if memory free list of that page becomes 0, free page count increased
+	if([MEMORY_FREE_LIST + pageNum] == 0) then
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+	endif;
+	alias i R3;
+	while (i < 16) do
+		if([PROCESS_TABLE + (i * 16) + 4] == WAIT_MEM) then
+			[PROCESS_TABLE + (i * 16) + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	return;
+endif;

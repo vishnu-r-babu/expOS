@@ -1,0 +1,133 @@
+alias currPID R0;
+currPID = [SYSTEM_STATUS_TABLE + 1];
+
+//save user SP
+alias userSP R1;
+userSP = SP;
+[PROCESS_TABLE + (16 * currPID) + 13] = SP;
+
+//set up kernel stack
+SP = ([PROCESS_TABLE + (16 * currPID) + 11] * 512) - 1;
+
+//set mode flag to 9
+[PROCESS_TABLE + (16 * currPID) + 9] = 9;
+
+//get filename
+alias filename R2;
+filename = [[PTBR+2*((userSP-4)/512)]*512+((userSP-4)%512)];
+
+//search memory copy of inode for file
+alias index R3;
+index=0;
+while (index < MAX_FILE_NUM) do
+	if ([INODE_TABLE + (16*index) + 1] == filename && [INODE_TABLE + 16*index + 0] == EXEC) then
+		break;
+	endif;
+	index = index + 1;
+endwhile;
+
+//if file not present return -1
+if (index == MAX_FILE_NUM) then
+	[([PTBR + (2 * ((userSP - 1)/512))] * 512) + ((userSP-1)%512)] = -1;
+	[PROCESS_TABLE + (16 * currPID) + 9] = 0;
+	SP = [PROCESS_TABLE + (16 * currPID) + 13];
+	ireturn;
+endif;
+
+//call exit function (num = 3) in module 1	
+backup;
+R1 = 3;
+R2 = currPID;	
+call MOD_1;
+restore;
+
+//get back user area page as it was deallocated in exit function
+alias uAreaPage R4;
+uAreaPage = [PROCESS_TABLE + (16 * currPID) + 11];
+[MEMORY_FREE_LIST + uAreaPage] = [MEMORY_FREE_LIST + uAreaPage] + 1;
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+//Set SP to start of user area page
+SP = (uAreaPage * 512) - 1;
+
+//set state to running
+[PROCESS_TABLE + (16*currPID) + 4] = RUNNING;
+
+//store inode index
+[PROCESS_TABLE + (16*currPID) + 7] = index;
+
+//Set up page table
+PTBR = [PROCESS_TABLE + (currPID * 16) + 14];
+PTLR = 10;
+
+//Library of new process
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+//invoke get free page for heap
+backup;
+R1 = 1;
+call MOD_2;
+[PTBR+4] = R0;
+[PTBR+5] = "0110";
+restore;
+
+backup;
+R1 = 1;
+call MOD_2;
+[PTBR+6] = R0;
+[PTBR+7] = "0110";
+restore;
+
+//invoke get free page for stack
+backup;
+R1 = 1;
+call MOD_2;
+[PTBR+16] = R0;
+[PTBR+17] = "0110";
+restore;
+
+backup;
+R1 = 1;
+call MOD_2;
+[PTBR+18] = R0;
+[PTBR+19] = "0110";
+restore;
+
+//alocate code pages after checking inode table
+alias i R5;
+i = 0;
+while (i<4) do
+	if ([INODE_TABLE + (index * 16) + 8 + i]!=-1) then
+		//invoke get free page
+		backup;
+		R1 = 1;
+		call MOD_2;
+		//allocate page in PT
+		[PTBR+ 8 + 2*i] = R0;
+		[PTBR+ 9 + 2*i] = "0100";
+		restore;
+		//load the page from disk to memory
+		loadi([PTBR+ 8 + 2*i], [INODE_TABLE + (index*16) + 8 + i]);
+	else
+		//if it is -1 in inode table block is not used, set to invalid
+		[PTBR+ 8 + 2*i] = -1;
+		[PTBR+ 9 + 2*i] = "0000";
+	endif;
+	i=i+1;
+endwhile;
+
+//set entry point at top of user stack
+[[PTBR + 16] * 512] = [([PTBR + 8] * 512) + 1];
+		
+//set stack pointer 
+SP = 8 * 512;
+
+//set mode flag to 0
+[PROCESS_TABLE + (currPID*16) + 9] = 0;
+
+breakpoint;
+
+ireturn;
