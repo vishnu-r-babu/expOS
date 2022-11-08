@@ -1,0 +1,32 @@
+alias functionNum R1;
+alias currentPID R2;
+
+//implementing only terminal write
+//if function number not 3, return
+if (functionNum != 3) then
+	return;
+endif;
+
+//push values used in this module	
+multipush(R1, R2, R3);
+
+//storing values to call module 0, acquire terminal
+R1 = 8;
+R2 = currentPID;
+
+call MOD_0;
+
+multipop(R1, R2, R3);
+
+print R3;
+
+multipush(R1, R2, R3);
+
+//storing values to call module 0, release terminal
+R1 = 9;
+R2 = currentPID;
+
+call MOD_0;
+
+multipop(R1, R2, R3);
+return;

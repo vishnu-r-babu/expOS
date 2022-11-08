@@ -1,0 +1,12 @@
+alias num R0;
+num=1;
+alias sum R1;
+sum=0;
+while(R0<=20)
+	do
+		sum=sum+(num*num);
+		num=num+1;
+		breakpoint;
+	endwhile;
+print sum;
+
