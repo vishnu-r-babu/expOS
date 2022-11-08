@@ -1,0 +1,9 @@
+load --os $HOME/myexpos/spl/spl_progs/os_startup_w_idle_lib.xsm
+load --init $HOME/myexpos/expl/samples/numbers100.xsm
+load --int=10 $HOME/myexpos/spl/spl_progs/haltprog.xsm
+load --exhandler $HOME/myexpos/spl/spl_progs/sample_excpt.xsm
+load --int=timer $HOME/myexpos/spl/spl_progs/sample_timer2.xsm
+load --int=7 $HOME/myexpos/spl/spl_progs/sample_int7.xsm
+load --idle $HOME/myexpos/expl/expl_progs/idle2.xsm
+load --module 7 $HOME/myexpos/spl/spl_progs/module7.xsm
+load --module 5 $HOME/myexpos/spl/spl_progs/module_5.xsm

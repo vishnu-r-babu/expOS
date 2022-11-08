@@ -1,0 +1,9 @@
+load --os $HOME/myexpos/spl/spl_progs/OsStartupWithBootModule.xsm
+load --init $HOME/myexpos/expl/samples/odd.xsm
+load --int=10 $HOME/myexpos/spl/spl_progs/int10Stage14.xsm
+load --exhandler $HOME/myexpos/spl/spl_progs/sample_excpt.xsm
+load --int=timer $HOME/myexpos/spl/spl_progs/timerStage14.xsm
+load --int=7 $HOME/myexpos/spl/spl_progs/sample_int7.xsm
+load --idle $HOME/myexpos/expl/expl_progs/idle.xsm
+load --module 7 $HOME/myexpos/spl/spl_progs/module7.xsm
+load --module 5 $HOME/myexpos/spl/spl_progs/module_5.xsm
