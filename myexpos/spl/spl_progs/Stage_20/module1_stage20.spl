@@ -1,0 +1,120 @@
+alias functionNum R1;
+alias currPID R2;
+
+if (functionNum == GET_PCB_ENTRY) then
+	alias i R3;
+	i = 0;
+	while (i < 16) do
+		if ([PROCESS_TABLE + (i * 16) + 4] == TERMINATED) then
+			[PROCESS_TABLE + (i * 16) + 1] = i;
+			[PROCESS_TABLE + (i * 16) + 4] = ALLOCATED;
+			[PROCESS_TABLE + (i * 16) + 14] = PAGE_TABLE_BASE + (i * 20);
+			[PROCESS_TABLE + (i * 16) + 15] = 10;
+			R0 = i;
+			return;
+		endif;
+	i = i + 1;
+	endwhile;
+	R0 = -1;
+	return;
+endif;
+
+//if free user area page is called
+if (functionNum == FREE_USER_AREA_PAGE) then
+	//get user area page
+	R3 = [PROCESS_TABLE + (16 * currPID) + 11];
+	//invoke release page
+	multipush(R1, R2, R3);
+	R1 = RELEASE_PAGE;
+	R2 = R3;
+	call MOD_2;
+	multipop(R1, R2, R3);
+	return;
+endif;
+
+if (functionNum == EXIT_PROCESS) then
+	//invoke free page table
+	multipush(R1, R2);
+	R1 = FREE_PAGE_TABLE;
+	R2 = currPID;
+	call MOD_1;
+	multipop(R1, R2);
+	
+	//free user area page
+	multipush(R1, R2);
+	R1 = FREE_USER_AREA_PAGE;
+	R2 = currPID;
+	call MOD_1;
+	multipop(R1, R2);
+	
+	//set state to terminated
+	[PROCESS_TABLE + (currPID * 16) + 4] = TERMINATED;
+	
+	return;
+endif;
+
+if (functionNum == FREE_PAGE_TABLE) then
+	alias pageTable R3;
+	//get page table of current process
+	pageTable = [PROCESS_TABLE + (currPID*16) + 14];
+	//invalidate library pages
+	[pageTable + 0] = -1;
+	[pageTable + 1] = "0000";
+	[pageTable + 2] = -1;
+	[pageTable + 3] = "0000";
+	
+	alias i R4;
+	i=4;
+	//release each valid page and invalidate entry in pt
+	while (i < 20) do
+		if ([pageTable + i]!=-1) then
+			//invoke release page
+			multipush(R1,R2,R3,R4);
+			R1 = RELEASE_PAGE;
+			R2 = [pageTable + i];
+			call MOD_2;
+			multipop(R1,R2,R3,R4);
+			//invalidate
+			[pageTable + i] = -1;
+			[pageTable + i + 1] = "0000";
+		endif;
+		i = i + 2;
+	endwhile;
+	
+	i = 2;
+	while(i < 4) do
+		if([DISK_MAP_TABLE + (10 * currPID) + i] != -1) then
+			backup;
+			R1 = RELEASE_BLOCK;
+			R2 = [DISK_MAP_TABLE + (10 * currPID) + i];
+			call MOD_2;
+			restore;
+		endif;
+		i = i + 1;
+	endwhile;
+	
+	i = 8;
+	while(i < 10) do
+		if([DISK_MAP_TABLE + (10 * currPID) + i] != -1) then
+			backup;
+			R1 = RELEASE_BLOCK;
+			R2 = [DISK_MAP_TABLE + (10 * currPID) + i];
+			call MOD_2;
+			restore;
+		endif;
+		i = i + 1;
+	endwhile;
+	
+	[DISK_MAP_TABLE + (10 * currPID) + 0] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 1] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 2] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 3] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 4] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 5] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 6] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 7] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 8] = -1;
+	[DISK_MAP_TABLE + (10 * currPID) + 9] = -1;
+	
+	return;
+endif;
