@@ -1,0 +1,89 @@
+//INTERRUPT 11
+
+alias currPID R2;
+currPID = [SYSTEM_STATUS_TABLE + 1];
+
+//get syscall number from stack
+alias syscallNum R1;
+syscallNum = [([PTBR + (2 * ((SP-5)/512))] * 512) + ((SP-5)%512)];
+
+//switch to kernel stack
+alias userSP R4;
+userSP = SP;
+[PROCESS_TABLE + (currPID * 16) + 13] = SP;
+SP = [PROCESS_TABLE + (currPID * 16) + 11] * 512 - 1;
+
+//Getpid
+if (syscallNum == 11) then
+	[PROCESS_TABLE + (currPID * 16) + 9] = 11;
+	[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = [PROCESS_TABLE + (currPID * 16) + 1];
+	[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+endif;
+
+//Getppid
+if (syscallNum == 12) then
+	[PROCESS_TABLE + (currPID * 16) + 9] = 12;
+	[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = [PROCESS_TABLE + (currPID * 16) + 2];	
+	[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+endif;
+
+//Wait
+if (syscallNum == 13) then
+	//change mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 13;
+	
+	//process that has to wait
+	alias targetPID R3;
+	targetPID = [[PTBR + 2 * ((userSP - 4)/512)] * 512 + ((userSP - 4)%512)];
+	
+	//if targetPID is same as curr or terminated or out of range
+	if(targetPID == currPID || [PROCESS_TABLE + (targetPID * 16) + 4] == TERMINATED || targetPID<0 || targetPID>15) then
+		[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -1;
+		[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + (currPID * 16) + 13];
+		ireturn;
+	endif;
+	
+	//if valid set current process state
+	[PROCESS_TABLE + (currPID * 16) + 4] = WAIT_PROCESS;
+	[PROCESS_TABLE + (currPID * 16) + 5] = targetPID;
+	
+	//invoke scheduler
+	backup;
+	call MOD_5;
+	restore;
+	
+	//reset mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+	
+	//store 0 as return value
+	[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = 0;
+endif;
+
+//signal
+if(syscallNum == 14) then
+	//change mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 14;
+	
+	//update state of processes with waitpid as current process
+	alias i R5;
+	i = 0;
+	while (i < 16) do
+		if([PROCESS_TABLE + (i*16) + 4] == WAIT_PROCESS && [PROCESS_TABLE + (i*16) + 5] == currPID) then
+			[PROCESS_TABLE + (i*16) + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	
+	//reset mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+	
+	//store 0 as return value
+	[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = 0;
+	
+endif;
+
+//reset SP
+SP = [PROCESS_TABLE + (currPID * 16) + 13];
+//return to user program
+ireturn;
