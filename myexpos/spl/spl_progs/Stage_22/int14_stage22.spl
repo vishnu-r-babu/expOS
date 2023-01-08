@@ -1,0 +1,120 @@
+//INTERRUPT 14
+
+alias currPID R2;
+currPID = [SYSTEM_STATUS_TABLE + 1];
+
+//get syscall number from stack
+alias syscallNum R1;
+syscallNum = [([PTBR + (2 * ((SP-5)/512))] * 512) + ((SP-5)%512)];
+
+//switch to kernel stack
+alias userSP R4;
+userSP = SP;
+[PROCESS_TABLE + (currPID * 16) + 13] = SP;
+SP = [PROCESS_TABLE + (currPID * 16) + 11] * 512 - 1;
+
+//semlock
+if (syscallNum == 19) then
+	//set mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 19;
+	
+	alias uAreaPage R3;
+	uAreaPage = [PROCESS_TABLE + (currPID * 16) + 11];
+	
+	alias semID R5;
+	semID = [[PTBR + 2 * ((userSP - 4)/512)] * 512 + ((userSP - 4)%512)];
+	
+	alias perProcessTable R6;
+	perProcessTable = (uAreaPage * 512) + 496 + (2 * semID);
+	
+	//if semID invalid return -1
+	if (semID<0 || semID>7 || [perProcessTable] != 1) then
+		[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -1;
+		[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + (currPID * 16) + 13];
+		ireturn;	
+	endif;
+	
+	alias lockingPIDAddr R7;
+	lockingPIDAddr = SEMAPHORE_TABLE + ([perProcessTable + 1] * 4);
+	
+	//busy loop while sem is locked by other process
+	while ([lockingPIDAddr] != -1 && [lockingPIDAddr] != currPID) do
+		[PROCESS_TABLE + (16 * currPID) + 4] = WAIT_SEMAPHORE;
+		breakpoint;
+		[PROCESS_TABLE + (16 * currPID) + 5] = [perProcessTable + 1];
+		backup;
+		call MOD_5;
+		restore;
+	endwhile;
+	
+	//set currPID as new lockingPID
+	[lockingPIDAddr] = currPID;
+	
+	//reset mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+	
+	//store 0 as return value
+	[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = 0;
+
+endif;
+
+if (syscallNum == 20) then
+	//set mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 19;
+	
+	alias uAreaPage R3;
+	uAreaPage = [PROCESS_TABLE + (currPID * 16) + 11];
+	
+	alias semID R5;
+	semID = [[PTBR + 2 * ((userSP - 4)/512)] * 512 + ((userSP - 4)%512)];
+	
+	alias perProcessTable R6;
+	perProcessTable = (uAreaPage * 512) + 496 + (2 * semID);
+	
+	//if semID invalid return -1
+	if (semID<0 || semID>7 || [perProcessTable] != 1) then
+		[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -1;
+		[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + (currPID * 16) + 13];
+		ireturn;	
+	endif;
+	
+	alias lockingPIDAddr R7;
+	lockingPIDAddr = SEMAPHORE_TABLE + ([perProcessTable + 1] * 4);
+	
+	if ([lockingPIDAddr] != -1) then
+		
+		//current process not locking
+		if ([lockingPIDAddr] != currPID) then
+			[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = -2;
+			[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+			SP = [PROCESS_TABLE + (currPID * 16) + 13];
+		ireturn;
+		endif;
+		
+		//unlock by setting lockingPID to -1
+		[lockingPIDAddr] = -1;
+		
+		alias i R8;
+		i = 0;
+		while (i < 16) do
+			if ([PROCESS_TABLE + (16 * i) + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + (16 * i) + 5] == [perProcessTable + 1]) then
+				[PROCESS_TABLE + (16 * i) + 4] = READY;
+			endif;
+		i = i + 1;
+		endwhile;
+	endif;
+	
+	//reset mode flag
+	[PROCESS_TABLE + (currPID * 16) + 9] = 0;
+	
+	//store 0 as return value
+	[[PTBR + 2 * ((userSP - 1)/512)] * 512 + ((userSP - 1)%512)] = 0;
+	
+endif;
+
+//reset SP
+SP = [PROCESS_TABLE + (currPID * 16) + 13];
+//return to user program
+ireturn;

@@ -1,0 +1,204 @@
+//interrupt 8
+alias parentProcessTable R3;
+parentProcessTable = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16);
+
+//set mode flag to 8
+[parentProcessTable + 9] = 8;
+
+//switch to kernel stack
+alias returnAddr R15;
+returnAddr = ([PTBR + (2 * ((SP-1)/512))] * 512) + ((SP-1)%512);
+[parentProcessTable + 13] = SP;
+SP = [parentProcessTable + 11] * 512 - 1;
+
+//invoke GET_PCB_ENTRY from module 1
+multipush(R3);
+R1 = GET_PCB_ENTRY;
+call MOD_1;
+multipop(R3);
+
+
+
+//free process table not available
+if (R0 == -1) then
+	SP = [parentProcessTable + 13];
+	[returnAddr] = -1;
+	[parentProcessTable + 9] = 0;	
+	ireturn;
+endif;
+
+alias childPID R5;
+childPID = R0;
+
+PTBR = [parentProcessTable + 14];
+
+//if parent's heap page is not allocated
+if([PTBR + 4] == -1) then
+	//first heap page
+	backup;
+	R1 = 1;
+	call MOD_2;
+	[PTBR + 4] = R0;
+	[PTBR + 5] = "0110";
+	restore;
+
+	//second heap page
+	backup;
+	R1 = 1;
+	call MOD_2;
+	[PTBR + 6] = R0;
+	[PTBR + 7] = "0110";
+	restore;
+endif;
+
+alias childPTBR R6;
+alias childProcessTable R4;
+childProcessTable = PROCESS_TABLE + (childPID * 16);
+
+childPTBR = [childProcessTable + 14]; //change to PAGE_TABLE_BASE + (20 * childPID)
+
+//(R1, R3, R4, R5, R6);
+//first stack page of child
+multipush(R1, R3, R4, R5, R6, R15);
+R1 = 1;
+call MOD_2;
+multipop(R1, R3, R4, R5, R6, R15);
+[childPTBR + 16] = R0;
+[childPTBR + 17] = "0110";
+
+//second stack page of child
+multipush(R1, R3, R4, R5, R6, R15);
+R1 = 1;
+call MOD_2;
+multipop(R1, R3, R4, R5, R6, R15);
+[childPTBR + 18] = R0;
+[childPTBR + 19] = "0110";
+
+//user area page of child
+multipush(R1, R3, R4, R5, R6, R15);
+R1 = 1;
+call MOD_2;
+multipop(R1, R3, R4, R5, R6, R15);
+[childProcessTable + 11] = R0;
+
+
+
+//set up child's process table entries
+
+//userID
+[childProcessTable + 3] = [parentProcessTable + 3];
+//swap flag
+[childProcessTable + 6] = [parentProcessTable + 6];
+//swap status flag
+[childProcessTable + 10] = [parentProcessTable + 10];
+//inode index
+[childProcessTable + 7] = [parentProcessTable + 7];
+//uptr
+
+[childProcessTable + 13] = [parentProcessTable + 13];
+
+//tick
+[childProcessTable + 0] = 0;
+//mode
+[childProcessTable + 9] = 0;
+//kptr
+[childProcessTable + 12] = 0;
+//set PPID
+[childProcessTable + 2] = [SYSTEM_STATUS_TABLE + 1];
+//set status
+[childProcessTable + 4] = CREATED;
+
+alias i R7;
+i = 0;
+
+//copy parent's per process resource table
+alias uAreaPageParent R8;
+uAreaPageParent = [parentProcessTable + 11];
+
+alias uAreaPageChild R9;
+uAreaPageChild = [childProcessTable + 11];
+
+alias perProcessParent R11;
+perProcessParent = ((uAreaPageParent+1) * 512) - 16;
+
+alias perProcessChild R12;
+perProcessChild = ((uAreaPageChild+1) * 512) - 16;
+
+while (i < 16) do
+	[perProcessChild + i] = [perProcessParent + i];
+	if ([perProcessParent + i] == SEMAPHORE) then
+		[perProcessChild + i + 1] = [perProcessParent + i + 1];
+		R13 = SEMAPHORE_TABLE + ([perProcessParent + i + 1] * 4) + 1;
+		[R13] = [R13] + 1;
+	endif;
+	i = i + 2;	
+endwhile;
+
+alias currPID R2;
+currPID = [SYSTEM_STATUS_TABLE + 1];
+
+//copy parent's per-process disk-map table
+i = 0;
+while (i < 10) do
+	[DISK_MAP_TABLE + (childPID*10) + i] = [DISK_MAP_TABLE + (currPID*10) + i]; 
+i = i + 1;
+endwhile;
+
+//initialise page table
+//library
+[childPTBR + 0] = [PTBR+0];
+[childPTBR + 1] = [PTBR+1];
+[childPTBR + 2] = [PTBR+2];
+[childPTBR + 3] = [PTBR+3];
+
+//increase count of pages in mem-free list
+[MEMORY_FREE_LIST + [PTBR + 0]] = [MEMORY_FREE_LIST + [PTBR + 0]] + 1;
+[MEMORY_FREE_LIST + [PTBR + 2]] = [MEMORY_FREE_LIST + [PTBR + 2]] + 1;
+
+//heap
+[childPTBR + 4] = [PTBR+4];
+[childPTBR + 5] = [PTBR+5];
+[childPTBR + 6] = [PTBR+6];
+[childPTBR + 7] = [PTBR+7];
+
+[MEMORY_FREE_LIST + [PTBR+4]] = [MEMORY_FREE_LIST + [PTBR+4]] + 1;
+[MEMORY_FREE_LIST + [PTBR+6]] = [MEMORY_FREE_LIST + [PTBR+6]] + 1;
+
+//code
+i = 0;
+while(i < 8) do
+	[childPTBR + 8 + i] = [PTBR + 8 + i];
+	[childPTBR + 9 + i] = [PTBR + 9 + i];
+	if([PTBR + 8 + i] != -1) then
+		[MEMORY_FREE_LIST + [PTBR + 8 + i]] = [MEMORY_FREE_LIST + [PTBR + 8 + i]] + 1;
+	endif;
+i = i + 2;
+endwhile;
+
+//copy parent's stack pages
+i = 0;
+while (i < 512) do
+	[([childPTBR + 16] * 512) + i] = [([PTBR + 16] * 512) + i];
+	i = i + 1;
+endwhile;
+
+i = 0;
+while (i < 512) do
+	[([childPTBR + 18] * 512) + i] = [([PTBR + 18] * 512) + i];
+	i = i + 1;
+endwhile;
+
+
+
+//store BP's value on top of kernel stack of child process
+[[childProcessTable + 11] * 512] = BP;
+//set return value of child as 0
+alias child_SP R10;
+child_SP = [childProcessTable + 13];
+[([childPTBR + (2 * ((child_SP-1)/512))] * 512) + ((child_SP-1)%512)] = 0;
+//set return value of parent as PID of child
+SP = [parentProcessTable + 13];
+
+[returnAddr] = childPID;
+[parentProcessTable + 9] = 0;	
+ireturn;

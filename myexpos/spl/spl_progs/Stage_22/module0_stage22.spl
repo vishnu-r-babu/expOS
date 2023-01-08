@@ -1,0 +1,100 @@
+
+alias functionNum R1;
+alias currentPID R2;
+
+//acquire semaphore
+if (functionNum == ACQUIRE_SEMAPHORE) then
+	alias i R3;
+	i = 0;
+	
+	//find free entry in semtable
+	while (i<MAX_SEM_COUNT) do
+		if([SEMAPHORE_TABLE + (i*4) + 1] == 0) then
+			[SEMAPHORE_TABLE + (i*4) + 1] = 1;
+			[SEMAPHORE_TABLE + (i*4)] = -1;
+			R0 = i;
+			
+			return;
+		endif;
+	i = i + 1;
+	endwhile;
+	
+	//no free entry
+	R0 = -1;
+	
+	return;
+
+endif;
+
+//release semaphore
+if (functionNum == RELEASE_SEMAPHORE) then
+	alias semTableIndex R3;
+	
+	//if locking PID is current process
+	if ([SEMAPHORE_TABLE + (4 * semTableIndex)] == currentPID) then
+		[SEMAPHORE_TABLE + (4 * semTableIndex)] = -1;
+		 alias i R4;
+		 i = 0;
+		 while (i < 16) do
+		 	if ([PROCESS_TABLE + (16 * i) + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + (16 * i) + 5] == semTableIndex) then
+		 		[PROCESS_TABLE + (i * 16) + 4] = READY;	
+		 	endif;
+		 i = i + 1;
+		 endwhile;
+		 
+		 [SEMAPHORE_TABLE + (4 * semTableIndex) + 1] = [SEMAPHORE_TABLE + (4 * semTableIndex) + 1] - 1;
+		 	
+	endif;
+	
+	return;
+	
+endif;
+
+//acquire disk
+if (functionNum == ACQUIRE_DISK) then
+	while ([DISK_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + (16 * currentPID) + 4] = WAIT_DISK;
+		multipush(R1, R2);
+		call MOD_5;
+		multipop(R1, R2);
+	endwhile;
+	[DISK_STATUS_TABLE] = 1;
+	[DISK_STATUS_TABLE + 4] = currentPID;	
+	
+	return;
+endif;
+
+//acquire terminal code
+if (functionNum == 8) then
+	while([TERMINAL_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + (16 * currentPID) + 4] = WAIT_TERMINAL;
+		multipush(R1, R2);
+		call MOD_5;
+		multipop(R1, R2);
+	endwhile;
+	[TERMINAL_STATUS_TABLE] = 1;
+	[TERMINAL_STATUS_TABLE + 1] = currentPID;
+	
+	return;
+endif;
+
+//release terminal code
+if (functionNum == 9) then
+	if (currentPID != [TERMINAL_STATUS_TABLE + 1]) then
+		R0 = -1;
+		
+		return;
+	endif;
+	[TERMINAL_STATUS_TABLE] = 0;
+	alias i R3;
+	i = 0;
+	while (i < 16) do
+		if ([PROCESS_TABLE + (16 * i) + 4] == WAIT_TERMINAL) then 
+			[PROCESS_TABLE + (16 * i) + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	R0 = 0;
+
+return;
+endif;
