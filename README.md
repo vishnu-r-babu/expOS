@@ -1,2 +1,2 @@
 # expOS
-My implementation of [expOS](https://exposnitc.github.io/index.html) (Operating Systems Lab, Semester 5).
+My implementation of [expOS](https://exposnitc.github.io/index.html) upto stage 22.
